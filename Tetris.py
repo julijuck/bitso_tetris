@@ -1,9 +1,17 @@
 
-# === Tetris developed by @julian_colombo with Pygame ===
+""" 
+Bitso Tetris - Developed by @julian_colombo
 
-import pygame
+Version: 1.0
+Description:
+Classic Tetris clone built with Pygane, featuring Bitso branding,
+local leaderboard, game states, scoring, levels, and pause functionality.
+"""
+
+
 import sys
 import random
+import pygame
 
 
 # === Constants ===
@@ -29,6 +37,8 @@ CONFIG = {
     "LATERAL_SPEED": 150,
 }
 
+PANEL_X = 330  # Panel X position for info display
+
 # === Utility Functions ===
 def load_high_score():
     """Reads the high score from the RECORD_FILE."""
@@ -51,6 +61,7 @@ last_right_move_time = 0
 next_piece, next_color = None, None  # Next piece and color
 total_lines = 0  # Total lines cleared to increase level
 game_state = "playing"
+is_paused = False
 high_score = load_high_score()
 start_time = pygame.time.get_ticks()
 
@@ -152,7 +163,7 @@ board = [
 
 # === Drawing Functions ===
 def draw_board():
-    """Draws the board grid and its contents."""
+    """Draws the Tetris board and cell grid."""
     for row in range(CONFIG["ROWS"]):
         for col in range(CONFIG["COLUMNS"]):
             color = board[row][col]
@@ -180,7 +191,7 @@ def draw_board():
             )
 
 def draw_piece(piece, rotation, piece_x, piece_y, color):
-    """Draws the current piece at its position."""
+    """Draws the current piece at its board position."""
     shape = piece[rotation]
     for i, row in enumerate(shape):
         for j, cell in enumerate(row):
@@ -278,9 +289,15 @@ def reset_piece():
     piece_x = (CONFIG["COLUMNS"] - 4) // 2
     piece_y = 0
 
+    # Draw the board and piece immediately (no animation)
+    draw_board()
+    draw_piece(current_piece, current_rotation, piece_x, piece_y, current_color)
+    pygame.display.flip()
+
+
 # === Collision and Validation ===
 def valid_position(piece, rotation, piece_x, piece_y, board):
-    """Checks if the piece can be placed at the given position."""
+    """Returns True if the piece fits at the given position on the board."""
     shape = piece[rotation]
     for i, row in enumerate(shape):
         for j, cell in enumerate(row):
@@ -299,13 +316,12 @@ def valid_position(piece, rotation, piece_x, piece_y, board):
     return True
 
 def is_game_over(piece, rotation, piece_x, piece_y, board):
-    """Returns True if the game is over (piece can't be placed)."""
+    """Returns True if the current piece placement triggers game over."""
     return not valid_position(piece, rotation, piece_x, piece_y, board)
 
-def lock_and_reset_piece():
-    """Locks the current piece, clears rows, and handles level/score."""
-    global score, total_lines, level, fall_delay, last_fall_time
-    global board, game_state
+
+# === Piece Loc/Clear/Score Functions ===
+def lock_piece_to_board():
     add_piece_to_board(
         current_piece,
         current_rotation,
@@ -314,15 +330,10 @@ def lock_and_reset_piece():
         board,
         current_color
     )
-    reset_piece()
-    if is_game_over(
-        current_piece,
-        current_rotation,
-        piece_x,
-        piece_y,
-        board
-    ):
-        game_state = "gameover"
+    
+def clear_and_animate_rows():
+    """Clears filled rows and plays clear animation."""
+    global board
     board, cleared, highlighted_rows = clear_complete_rows(board)
     if cleared > 0:
         for i in highlighted_rows:
@@ -339,12 +350,16 @@ def lock_and_reset_piece():
                 )
         pygame.display.flip()
         pygame.time.delay(150)
+    return cleared
+    
+def update_score_and_level(cleared):
+    """Updates score, level, and fall speed after line clears."""
+    global score, total_lines, level, fall_delay
     score += calculate_score(cleared)
     total_lines += cleared
     if total_lines >= level * 10:
         level += 1
         fall_delay = max(100, fall_delay - 50)
-    last_fall_time = pygame.time.get_ticks()
 
 # === Game Loop Variables ===
 next_piece, next_color = new_piece()
@@ -450,6 +465,9 @@ if choice == "Leaderboard":
 
 while True:
     for event in pygame.event.get():
+        # Handle pause toggle
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_p:
+            is_paused = not is_paused
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_UP:
                 new_rotation = (current_rotation + 1) % len(current_piece)
@@ -467,10 +485,37 @@ while True:
                     current_piece, current_rotation, piece_x, piece_y + 1, board
                 ):
                     piece_y += 1
-                lock_and_reset_piece()
+                lock_piece_to_board()
+                reset_piece()
+                if is_game_over(
+                    current_piece, 
+                    current_rotation, 
+                    piece_x, 
+                    piece_y, 
+                    board
+                ):
+                    game_state = "gameover"
+                cleared = clear_and_animate_rows()
+                update_score_and_level(cleared)
+                last_fall_time = pygame.time.get_ticks()
         if event.type == pygame.QUIT:
             pygame.quit()
             sys.exit()
+
+    # Pause logic
+    if is_paused:
+        font_pause = pygame.font.SysFont("Verdana", 40, bold=True)
+        text_pause = font_pause.render("PAUSED", True, (255, 255, 255))
+        window.blit(
+            text_pause,
+            (
+                CONFIG["WINDOW_WIDTH"] // 2 - text_pause.get_width() // 2,
+                CONFIG["WINDOW_WIDTH"] // 2 - text_pause.get_height() // 2
+            )
+        )
+        pygame.display.flip()
+        clock.tick(CONFIG["FPS"])
+        continue
 
     # Continuous input handling
     now = pygame.time.get_ticks()
@@ -480,33 +525,19 @@ while True:
         ):
             piece_y += 1
         else:
-            lock_and_reset_piece()
-        if is_game_over(
-            current_piece, current_rotation, piece_x, piece_y, board
-        ):
-            game_state = "gameover"
-        board, cleared, highlighted_rows = clear_complete_rows(board)
-        if cleared > 0:
-            for i in highlighted_rows:
-                for col in range(CONFIG["COLUMNS"]):
-                    pygame.draw.rect(
-                        window,
-                        (255, 255, 255),
-                        (
-                            col * CONFIG["CELL_SIZE"],
-                            i * CONFIG["CELL_SIZE"] + 60,
-                            CONFIG["CELL_SIZE"],
-                            CONFIG["CELL_SIZE"]
-                        )
-                    )
-            pygame.display.flip()
-            pygame.time.delay(150)
-        score += calculate_score(cleared)
-        total_lines += cleared
-        if total_lines >= level * 10:
-            level += 1
-            fall_delay = max(100, fall_delay - 50)
-        last_fall_time = now
+            lock_piece_to_board()
+            reset_piece()
+            if is_game_over(
+                    current_piece, 
+                    current_rotation, 
+                    piece_x, 
+                    piece_y, 
+                    board
+                ):
+                game_state = "gameover"
+            cleared = clear_and_animate_rows()
+            update_score_and_level(cleared)
+            last_fall_time = now
 
     keys = pygame.key.get_pressed()
     if keys[pygame.K_DOWN]:
@@ -685,7 +716,7 @@ while True:
         True,
         (255, 255, 255)
     )
-    x_info = 330
+    x_info = PANEL_X
     y_info = 120
     line_spacing = 30
     window.blit(text_score, (x_info, y_info))
@@ -700,6 +731,13 @@ while True:
     window.blit(text_time, (x_info, y_info))
     window.blit(value_time, (x_info + 140, y_info))
 
+    # Display total lines cleared
+    text_lines = font_bold.render("Lines:", True, (255, 255, 255))
+    value_lines = font.render(str(total_lines), True, (255, 255, 255))
+    y_info += line_spacing
+    window.blit(text_lines, (x_info, y_info))
+    window.blit(value_lines, (x_info + 140, y_info))
+    
     # Display next piece
     font_next = pygame.font.SysFont("Verdana", 20, bold=True)
     text_next = font_next.render(
