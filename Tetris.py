@@ -2,7 +2,7 @@
 """ 
 Bitso Tetris - Developed by @julian_colombo
 
-Version: 1.0
+Version: 1.0.1
 Description:
 Classic Tetris clone built with Pygane, featuring Bitso branding,
 local leaderboard, game states, scoring, levels, and pause functionality.
@@ -243,15 +243,17 @@ def reset_game_state():
     """Resets all game state variables for a new game."""
     global board, score, level, fall_delay, total_lines
     global next_piece, next_color, game_state, start_time
+    fall_delay = CONFIG["INITIAL_FALL_DELAY"]
     board = [[(0, 0, 0) for _ in range(CONFIG["COLUMNS"])]
              for _ in range(CONFIG["ROWS"])]
     score = 0
     level = 1
-    fall_delay = CONFIG["INITIAL_FALL_DELAY"]
     total_lines = 0
     next_piece, next_color = new_piece()
     game_state = "playing"
     start_time = pygame.time.get_ticks()
+    global last_fall_time
+    last_fall_time = pygame.time.get_ticks()
 
 def clear_complete_rows(board):
     """Removes all full rows and returns new board, count, and indices."""
@@ -293,6 +295,8 @@ def reset_piece():
     draw_board()
     draw_piece(current_piece, current_rotation, piece_x, piece_y, current_color)
     pygame.display.flip()
+    global last_fall_time
+    last_fall_time = pygame.time.get_ticks()
 
 
 # === Collision and Validation ===
@@ -359,13 +363,12 @@ def update_score_and_level(cleared):
     total_lines += cleared
     if total_lines >= level * 10:
         level += 1
-        fall_delay = max(100, fall_delay - 50)
+        fall_delay = max(250, fall_delay - 50)
 
 # === Game Loop Variables ===
+fall_delay = CONFIG["INITIAL_FALL_DELAY"]  # ms
 next_piece, next_color = new_piece()
 reset_piece()
-fall_delay = CONFIG["INITIAL_FALL_DELAY"]  # ms
-last_fall_time = pygame.time.get_ticks()
 
 # === Leaderboard Display ===
 def show_leaderboard():
@@ -463,6 +466,8 @@ if choice == "Leaderboard":
     if choice == "Leaderboard":
         show_leaderboard()
 
+last_fall_time = pygame.time.get_ticks()
+
 while True:
     for event in pygame.event.get():
         # Handle pause toggle
@@ -487,6 +492,7 @@ while True:
                     piece_y += 1
                 lock_piece_to_board()
                 reset_piece()
+                last_fall_time = pygame.time.get_ticks()
                 if is_game_over(
                     current_piece, 
                     current_rotation, 
@@ -497,7 +503,6 @@ while True:
                     game_state = "gameover"
                 cleared = clear_and_animate_rows()
                 update_score_and_level(cleared)
-                last_fall_time = pygame.time.get_ticks()
         if event.type == pygame.QUIT:
             pygame.quit()
             sys.exit()
@@ -519,7 +524,9 @@ while True:
 
     # Continuous input handling
     now = pygame.time.get_ticks()
-    if now - last_fall_time > fall_delay:
+    keys = pygame.key.get_pressed()
+    # Only allow automatic fall if not holding down key for fast drop
+    if not keys[pygame.K_DOWN] and now - last_fall_time > fall_delay:
         if valid_position(
             current_piece, current_rotation, piece_x, piece_y + 1, board
         ):
@@ -537,16 +544,26 @@ while True:
                 game_state = "gameover"
             cleared = clear_and_animate_rows()
             update_score_and_level(cleared)
-            last_fall_time = now
+        last_fall_time = now
 
-    keys = pygame.key.get_pressed()
-    if keys[pygame.K_DOWN]:
-        if pygame.time.get_ticks() - last_fall_time > CONFIG["FAST_DROP_SPEED"]:
-            if valid_position(
-                current_piece, current_rotation, piece_x, piece_y + 1, board
+    # Fast drop (down key): does not interfere with auto fall timer
+    if keys[pygame.K_DOWN] and now - last_fall_time > CONFIG["FAST_DROP_SPEED"]:
+        if valid_position(
+            current_piece, current_rotation, piece_x, piece_y + 1, board
+        ):
+            piece_y += 1
+            last_fall_time = now
+        else:
+            lock_piece_to_board()
+            reset_piece()
+            last_fall_time = now
+            if is_game_over(
+                current_piece, current_rotation, piece_x, piece_y, board
             ):
-                piece_y += 1
-                last_fall_time = pygame.time.get_ticks()
+                game_state = "gameover"
+            cleared = clear_and_animate_rows()
+            update_score_and_level(cleared)
+
     if (
         keys[pygame.K_LEFT]
         and now - last_left_move_time > CONFIG["LATERAL_SPEED"]

@@ -2,3 +2,4 @@ Player,100
 Julian,400
 Juli,200
 Nada,0
+Julian,0
