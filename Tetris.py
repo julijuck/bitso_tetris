@@ -2,7 +2,7 @@
 """ 
 Bitso Tetris - Developed by @julian_colombo
 
-Version: 1.0.1
+Version: 1.0.2
 Description:
 Classic Tetris clone built with Pygane, featuring Bitso branding,
 local leaderboard, game states, scoring, levels, and pause functionality.
@@ -190,14 +190,14 @@ def draw_board():
                 1
             )
 
-def draw_piece(piece, rotation, piece_x, piece_y, color):
+def draw_piece(piece, rotation, piece_x, piece_y, color, pixel_offset=0):
     """Draws the current piece at its board position."""
     shape = piece[rotation]
     for i, row in enumerate(shape):
         for j, cell in enumerate(row):
             if cell == 1:
                 x = (piece_x + j) * CONFIG["CELL_SIZE"]
-                y = (piece_y + i) * CONFIG["CELL_SIZE"] + 60
+                y = (piece_y + i) * CONFIG["CELL_SIZE"] + 60 + pixel_offset
                 pygame.draw.rect(
                     window,
                     color,
@@ -217,6 +217,14 @@ def draw_piece(piece, rotation, piece_x, piece_y, color):
                     ),
                     1
                 )
+
+# === Animate Piece Entry ===
+def animate_piece_entry(piece, rotation, x, y, color):
+    for offset in reversed(range(10)):
+        draw_board()
+        draw_piece(piece, rotation, x, y, color, pixel_offset=-offset * 3)
+        pygame.display.flip()
+        pygame.time.delay(15)
 
 # === Game Logic Functions ===
 def new_piece():
@@ -291,10 +299,11 @@ def reset_piece():
     piece_x = (CONFIG["COLUMNS"] - 4) // 2
     piece_y = 0
 
-    # Draw the board and piece immediately (no animation)
-    draw_board()
-    draw_piece(current_piece, current_rotation, piece_x, piece_y, current_color)
-    pygame.display.flip()
+    # Animate entry of the new piece
+    animate_piece_entry(
+        current_piece, current_rotation, piece_x, piece_y, current_color
+    )
+
     global last_fall_time
     last_fall_time = pygame.time.get_ticks()
 
@@ -509,17 +518,37 @@ while True:
 
     # Pause logic
     if is_paused:
-        font_pause = pygame.font.SysFont("Verdana", 40, bold=True)
-        text_pause = font_pause.render("PAUSED", True, (255, 255, 255))
-        window.blit(
-            text_pause,
-            (
-                CONFIG["WINDOW_WIDTH"] // 2 - text_pause.get_width() // 2,
-                CONFIG["WINDOW_WIDTH"] // 2 - text_pause.get_height() // 2
+        paused = True
+        while paused:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_p:
+                        is_paused = False
+                        paused = False
+                    elif event.key == pygame.K_m:
+                        choice = show_menu()
+                        if choice == "Leaderboard":
+                            show_leaderboard()
+                            choice = show_menu()
+                        reset_game_state()
+                        is_paused = False
+                        paused = False
+
+            font_pause = pygame.font.SysFont("Verdana", 40, bold=True)
+            text_pause = font_pause.render("PAUSED", True, (255, 255, 255))
+            window.fill((15, 15, 15))
+            window.blit(
+                text_pause,
+                (
+                    CONFIG["WINDOW_WIDTH"] // 2 - text_pause.get_width() // 2,
+                    CONFIG["WINDOW_HEIGHT"] // 2 - text_pause.get_height() // 2
+                )
             )
-        )
-        pygame.display.flip()
-        clock.tick(CONFIG["FPS"])
+            pygame.display.flip()
+            clock.tick(CONFIG["FPS"])
         continue
 
     # Continuous input handling
