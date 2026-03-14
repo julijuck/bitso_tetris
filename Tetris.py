@@ -648,11 +648,21 @@ while True:
                         name = name[:-1]
                     elif event_name.unicode.isprintable() and len(name) < 12:
                         name += event_name.unicode
-        try:
-            with open("leaderboard.txt", "a") as f:
-                f.write(f"{name},{score}\n")
-        except Exception:
-            pass
+        if score > 0:
+            try:
+                with open("leaderboard.txt", "a") as f:
+                    f.write(f"{name},{score}\n")
+                with open("leaderboard.txt", "r") as f:
+                    all_scores = [line.strip().split(",") for line in f if line.strip()]
+                all_scores = sorted(
+                    [s for s in all_scores if len(s) == 2 and s[1].isdigit()],
+                    key=lambda x: int(x[1]),
+                    reverse=True
+                )[:10]
+                with open("leaderboard.txt", "w") as f:
+                    f.writelines(f"{s[0]},{s[1]}\n" for s in all_scores)
+            except (IOError, OSError):
+                pass
         if score > high_score:
             with open(RECORD_FILE, "w") as file:
                 file.write(str(score))
