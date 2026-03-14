@@ -221,6 +221,28 @@ def draw_piece(piece, rotation, piece_x, piece_y, color, pixel_offset=0):
                     1
                 )
 
+def draw_ghost_piece():
+    """Draws a shadow showing where the current piece will land."""
+    ghost_y = piece_y
+    while valid_position(current_piece, current_rotation, piece_x, ghost_y + 1, board):
+        ghost_y += 1
+    if ghost_y == piece_y:
+        return
+    shape = current_piece[current_rotation]
+    for i, row in enumerate(shape):
+        for j, cell in enumerate(row):
+            if cell == 1:
+                x = (piece_x + j) * CONFIG["CELL_SIZE"]
+                y = (ghost_y + i) * CONFIG["CELL_SIZE"] + 60
+                pygame.draw.rect(
+                    window, (50, 50, 50),
+                    (x, y, CONFIG["CELL_SIZE"], CONFIG["CELL_SIZE"])
+                )
+                pygame.draw.rect(
+                    window, (100, 100, 100),
+                    (x, y, CONFIG["CELL_SIZE"], CONFIG["CELL_SIZE"]), 1
+                )
+
 # === Animate Piece Entry ===
 def animate_piece_entry(piece, rotation, x, y, color):
     for offset in reversed(range(10)):
@@ -379,8 +401,6 @@ def update_score_and_level(cleared):
 
 # === Game Loop Variables ===
 fall_delay = CONFIG["INITIAL_FALL_DELAY"]  # ms
-next_piece, next_color = new_piece()
-reset_piece()
 
 # === Leaderboard Display ===
 def show_leaderboard():
@@ -474,12 +494,12 @@ def show_menu():
 # === Main Game Loop ===
 # Show initial menu before starting the game
 choice = show_menu()
-if choice == "Leaderboard":
+while choice == "Leaderboard":
     show_leaderboard()
     choice = show_menu()
-    if choice == "Leaderboard":
-        show_leaderboard()
 
+next_piece, next_color = new_piece()
+reset_piece()
 last_fall_time = pygame.time.get_ticks()
 
 while True:
@@ -500,10 +520,13 @@ while True:
                 ):
                     piece_y += 1
             elif event.key == pygame.K_SPACE:
+                dropped = 0
                 while valid_position(
                     current_piece, current_rotation, piece_x, piece_y + 1, board
                 ):
                     piece_y += 1
+                    dropped += 1
+                score += dropped * 2
                 lock_piece_to_board()
                 reset_piece()
                 last_fall_time = pygame.time.get_ticks()
@@ -748,6 +771,7 @@ while True:
         )
     )
     draw_board()
+    draw_ghost_piece()
     draw_piece(current_piece, current_rotation, piece_x, piece_y, current_color)
     # Display score and level
     font = pygame.font.SysFont("Verdana", 20)
