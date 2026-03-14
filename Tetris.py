@@ -657,6 +657,15 @@ while True:
             try:
                 with open("leaderboard.txt", "a") as f:
                     f.write(f"{name},{score}\n")
+                with open("leaderboard.txt", "r") as f:
+                    all_scores = [line.strip().split(",") for line in f if line.strip()]
+                all_scores = sorted(
+                    [s for s in all_scores if len(s) == 2 and s[1].isdigit()],
+                    key=lambda x: int(x[1]),
+                    reverse=True
+                )[:10]
+                with open("leaderboard.txt", "w") as f:
+                    f.writelines(f"{s[0]},{s[1]}\n" for s in all_scores)
             except (IOError, OSError):
                 pass
         if score > high_score:
