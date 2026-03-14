@@ -22,8 +22,11 @@ RECORD_FILE = "record.txt"
 pygame.init()
 
 # Prepare space for logo
-logo_bitso = pygame.image.load("bitso_logo.png")
-logo_bitso = pygame.transform.scale(logo_bitso, (60, 60))
+try:
+    logo_bitso = pygame.image.load("bitso_logo.png")
+    logo_bitso = pygame.transform.scale(logo_bitso, (60, 60))
+except FileNotFoundError:
+    logo_bitso = None
 
 CONFIG = {
     "WINDOW_WIDTH": 560,
@@ -414,7 +417,8 @@ def show_leaderboard():
             (180, 180, 180)
         )
         window.blit(text_exit, (100, 450))
-        window.blit(logo_bitso, (CONFIG["WINDOW_WIDTH"] - 70, 10))
+        if logo_bitso:
+            window.blit(logo_bitso, (CONFIG["WINDOW_WIDTH"] - 70, 10))
         pygame.display.flip()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -452,7 +456,8 @@ def show_menu():
                     200 + i * 40
                 )
             )
-        window.blit(logo_bitso, (CONFIG["WINDOW_WIDTH"] - 70, 10))
+        if logo_bitso:
+            window.blit(logo_bitso, (CONFIG["WINDOW_WIDTH"] - 70, 10))
         pygame.display.flip()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -648,11 +653,12 @@ while True:
                         name = name[:-1]
                     elif event_name.unicode.isprintable() and len(name) < 12:
                         name += event_name.unicode
-        try:
-            with open("leaderboard.txt", "a") as f:
-                f.write(f"{name},{score}\n")
-        except Exception:
-            pass
+        if score > 0:
+            try:
+                with open("leaderboard.txt", "a") as f:
+                    f.write(f"{name},{score}\n")
+            except (IOError, OSError):
+                pass
         if score > high_score:
             with open(RECORD_FILE, "w") as file:
                 file.write(str(score))
@@ -809,9 +815,10 @@ while True:
                     (x, y, CONFIG["CELL_SIZE"], CONFIG["CELL_SIZE"]),
                     1
                 )
-    window.blit(
-        logo_bitso,
-        (CONFIG["WINDOW_WIDTH"] - 70, 10)
-    )
+    if logo_bitso:
+        window.blit(
+            logo_bitso,
+            (CONFIG["WINDOW_WIDTH"] - 70, 10)
+        )
     pygame.display.flip()
     clock.tick(CONFIG["FPS"])
